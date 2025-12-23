@@ -87,18 +87,19 @@
           <span class="modal-close" id="closeCategoryModal">×</span>
           <h2>新增分类</h2>
           <form id="addCategoryForm">
-            <label for="newCategoryName">分类名称:</label>
-            <input type="text" id="newCategoryName" required /><br />
-            <label for="newCategoryParent">父级分类(可选):</label>
-            <div id="newCategoryParentWrapper" class="custom-dropdown-wrapper"></div>
-            <input type="hidden" id="newCategoryParent" value="0">
-            <br />
-            <label for="newCategorySortOrder">排序值(可选,默认9999):</label>
-            <input
-              type="number"
-              id="newCategorySortOrder"
-              placeholder="9999"
-            /><br />
+            <div class="form-group">
+                <label for="newCategoryName">分类名称:</label>
+                <input type="text" id="newCategoryName" required />
+            </div>
+            <div class="form-group">
+                <label for="newCategoryParent">父级分类(可选):</label>
+                <div id="newCategoryParentWrapper" class="custom-dropdown-wrapper"></div>
+                <input type="hidden" id="newCategoryParent" value="0">
+            </div>
+            <div class="form-group">
+                <label for="newCategorySortOrder">排序值(可选,默认9999):</label>
+                <input type="number" id="newCategorySortOrder" placeholder="9999" />
+            </div>
             <div class="form-group flex items-center justify-between mt-2 mb-4">
               <label for="newCategoryIsPrivate" class="cursor-pointer select-none text-gray-700 font-medium">私密分类:</label>
               <label class="switch">
@@ -224,14 +225,19 @@
           <h2>编辑分类</h2>
           <form id="editCategoryForm">
             <input type="hidden" name="id" id="editCategoryId" />
-            <label for="editCategoryName">分类名称:</label>
-            <input type="text" id="editCategoryName" required /><br />
-            <label for="editCategoryParent">父级分类(可选):</label>
-            <div id="editCategoryParentWrapper" class="custom-dropdown-wrapper"></div>
-            <input type="hidden" id="editCategoryParent" value="0">
-            <br />
-            <label for="editCategorySortOrder">排序值(可选):</label>
-            <input type="number" id="editCategorySortOrder" /><br />
+            <div class="form-group">
+                <label for="editCategoryName">分类名称:</label>
+                <input type="text" id="editCategoryName" required />
+            </div>
+            <div class="form-group">
+                <label for="editCategoryParent">父级分类(可选):</label>
+                <div id="editCategoryParentWrapper" class="custom-dropdown-wrapper"></div>
+                <input type="hidden" id="editCategoryParent" value="0">
+            </div>
+            <div class="form-group">
+                <label for="editCategorySortOrder">排序值(可选):</label>
+                <input type="number" id="editCategorySortOrder" />
+            </div>
             <div class="form-group flex items-center justify-between mt-2 mb-4">
               <label for="editCategoryIsPrivate" class="cursor-pointer select-none text-gray-700 font-medium">私密分类:</label>
               <label class="switch">

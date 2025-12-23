@@ -944,6 +944,9 @@ function renderConfig(configs) {
     const descCell = config.desc ? escapeHTML(config.desc) : '暂无描述';
     const safeCatalog = escapeHTML(config.catelog || '未分类');
     const cardInitial = (safeName.charAt(0) || '站').toUpperCase();
+    
+    // Private Icon
+    const privateIcon = config.is_private ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 ml-1 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="私密书签"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>` : '';
 
     // Added cursor-pointer
     card.className = 'site-card group bg-white border border-primary-100/60 rounded-xl shadow-sm overflow-hidden relative cursor-pointer';
@@ -988,7 +991,10 @@ function renderConfig(configs) {
                   ${logoHtml}
                </div>
                <div class="flex-1 min-w-0">
-                  <h3 class="site-title text-base font-medium text-gray-900 truncate" title="${safeName}">${safeName}</h3>
+                  <div class="flex items-center">
+                      <h3 class="site-title text-base font-medium text-gray-900 truncate" title="${safeName}">${safeName}</h3>
+                      ${privateIcon}
+                  </div>
                   <span class="inline-flex items-center px-2 py-0.5 mt-1 rounded-full text-xs font-medium bg-secondary-100 text-primary-700">
                     ${safeCatalog}
                   </span>
