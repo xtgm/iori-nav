@@ -1,5 +1,5 @@
 
-import { jsonResponse, errorResponse } from '../../_middleware';
+import { jsonResponse, errorResponse } from '../_middleware';
 
 export async function onRequestGet(context) {
   const { request } = context;
