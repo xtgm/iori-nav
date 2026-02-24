@@ -90,7 +90,7 @@ export async function onRequest(context) {
     }
   }
 
-  // === 2. 并行执行数据库查询 ===
+  // === 2. 并行执行数据库查询 + 模板获取 ===
   const categoryQuery = isAuthenticated
     ? 'SELECT * FROM category ORDER BY sort_order ASC, id ASC'
     : 'SELECT * FROM category WHERE is_private = 0 ORDER BY sort_order ASC, id ASC';
@@ -100,10 +100,11 @@ export async function onRequest(context) {
   const sitesQuery = `SELECT id, name, url, logo, desc, catelog_id, catelog_name, sort_order, is_private, create_time, update_time
                       FROM sites WHERE (is_private = 0 OR ? = 1) ORDER BY sort_order ASC, create_time DESC`;
 
-  const [categoriesResult, settingsResult, sitesResult] = await Promise.all([
+  const [categoriesResult, settingsResult, sitesResult, templateResponse] = await Promise.all([
     env.NAV_DB.prepare(categoryQuery).all().catch(e => ({ results: [], error: e })),
     env.NAV_DB.prepare(`SELECT key, value FROM settings WHERE key IN (${settingsPlaceholders})`).bind(...settingsKeys).all().catch(e => ({ results: [], error: e })),
-    env.NAV_DB.prepare(sitesQuery).bind(includePrivate).all().catch(e => ({ results: [], error: e }))
+    env.NAV_DB.prepare(sitesQuery).bind(includePrivate).all().catch(e => ({ results: [], error: e })),
+    env.ASSETS.fetch(new URL('/index.html', request.url))
   ]);
 
   // === 3. 处理分类结果 — 构建分类树 ===
@@ -370,15 +371,19 @@ export async function onRequest(context) {
   const hitokotoClass = (isCustomWallpaper ? 'text-black dark:text-gray-200' : 'text-gray-500 dark:text-gray-400') + ' ml-auto';
 
   // === 16. 模板注入 ===
-  const templateResponse = await env.ASSETS.fetch(new URL('/index.html', request.url));
   let html = await templateResponse.text();
 
+  // --- 收集所有 </head> 注入内容（合并为一次替换） ---
+  let headInjections = '';
+
   // 注入隐藏图标的 CSS
-  let hideIconsCss = '<style>';
-  if (S.home_hide_github) hideIconsCss += 'a[title="GitHub"] { display: none !important; }';
-  if (S.home_hide_admin) hideIconsCss += 'a[href^="/admin"] { display: none !important; }';
-  hideIconsCss += '</style>';
-  if (hideIconsCss !== '<style></style>') html = html.replace('</head>', hideIconsCss + '</head>');
+  if (S.home_hide_github || S.home_hide_admin) {
+    let hideIconsCss = '<style>';
+    if (S.home_hide_github) hideIconsCss += 'a[title="GitHub"] { display: none !important; }';
+    if (S.home_hide_admin) hideIconsCss += 'a[href^="/admin"] { display: none !important; }';
+    hideIconsCss += '</style>';
+    headInjections += hideIconsCss;
+  }
 
   // 背景层 HTML
   const safeWallpaperUrl = sanitizeUrl(S.layout_custom_wallpaper);
@@ -386,39 +391,31 @@ export async function onRequest(context) {
   let bgLayerHtml = '';
   if (safeWallpaperUrl) {
     const blurStyle = S.layout_enable_bg_blur ? `filter: blur(${S.layout_bg_blur_intensity}px); transform: scale(1.02);` : '';
-    bgLayerHtml = `<div id="fixed-background" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -9999; pointer-events: none; overflow: hidden;"><img src="${safeWallpaperUrl}" alt="" style="width: 100%; height: 100%; object-fit: cover; ${blurStyle}" /></div>`;
+    bgLayerHtml = `<div id="fixed-background" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -9999; pointer-events: none; overflow: hidden;"><img src="${safeWallpaperUrl}" alt="" fetchpriority="high" style="width: 100%; height: 100%; object-fit: cover; ${blurStyle}" /></div>`;
   } else {
     bgLayerHtml = `<div id="fixed-background" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -9999; pointer-events: none; background-color: ${defaultBgColor};"></div>`;
   }
 
-  // 注入壁纸预加载（让浏览器在解析 <head> 时就开始下载壁纸图片）
+  // 壁纸预加载
   if (safeWallpaperUrl) {
-    html = html.replace('</head>', `<link rel="preload" as="image" href="${safeWallpaperUrl}">\n</head>`);
+    headInjections += `<link rel="preload" as="image" href="${safeWallpaperUrl}">\n`;
   }
 
-  // 注入全局滚动样式
-  const globalScrollCss = `<style>
+  // 全局滚动样式
+  headInjections += `<style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
     #app-scroll { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
     body { background-color: transparent !important; }
     #fixed-background { transition: background-color 0.3s ease, filter 0.3s ease; }
     @supports (-webkit-touch-callout: none) { #fixed-background { height: -webkit-fill-available; } }
   </style>`;
-  html = html.replace('</head>', `${globalScrollCss}</head>`);
 
-  // 替换 body 标签 + 滚动容器
-  html = html.replace(
-    '<body class="bg-secondary-50 font-sans text-gray-800">',
-    `<body class="bg-secondary-50 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-100 relative ${isCustomWallpaper ? 'custom-wallpaper' : ''}">${bgLayerHtml}<div id="app-scroll">`
-  );
-  html = html.replace('</body>', '</div></body>');
-
-  // 注入 CSS 变量
+  // CSS 变量
   const cardRadius = parseInt(S.layout_card_border_radius) || 12;
   const frostedBlur = String(S.layout_frosted_glass_intensity || '15').replace(/[^0-9]/g, '') || '15';
-  html = html.replace('</head>', `<style>:root { --card-padding: 1.25rem; --card-radius: ${cardRadius}px; --frosted-glass-blur: ${frostedBlur}px; }</style></head>`);
+  headInjections += `<style>:root { --card-padding: 1.25rem; --card-radius: ${cardRadius}px; --frosted-glass-blur: ${frostedBlur}px; }</style>`;
 
-  // 注入自定义字体
+  // 自定义字体
   const usedFonts = new Set();
   if (!S.layout_hide_title && S.home_title_font) usedFonts.add(S.home_title_font);
   if (!S.layout_hide_subtitle && S.home_subtitle_font) usedFonts.add(S.home_subtitle_font);
@@ -428,15 +425,21 @@ export async function onRequest(context) {
   if (S.card_desc_font) usedFonts.add(S.card_desc_font);
 
   let fontLinksHtml = '';
+  let needsFontPreconnect = false;
   usedFonts.forEach(font => {
-    if (font && FONT_MAP[font]) fontLinksHtml += `<link rel="stylesheet" href="${FONT_MAP[font]}">`;
+    if (font && FONT_MAP[font]) {
+      fontLinksHtml += `<link rel="stylesheet" href="${FONT_MAP[font]}">`;
+      needsFontPreconnect = true;
+    }
   });
   const safeCustomFontUrl = sanitizeUrl(S.home_custom_font_url);
   if (safeCustomFontUrl) fontLinksHtml += `<link rel="stylesheet" href="${safeCustomFontUrl}">`;
-  if (fontLinksHtml) html = html.replace('</head>', `${fontLinksHtml}</head>`);
+  // 字体域名预连接（减少 DNS + TLS 延迟）
+  if (needsFontPreconnect) headInjections += `<link rel="preconnect" href="https://fonts.loli.net" crossorigin>`;
+  if (fontLinksHtml) headInjections += fontLinksHtml;
 
-  // 注入卡片自定义字体 CSS
-  let customCardCss = '<style>';
+  // 卡片自定义字体 CSS
+  let customCardCss = '';
   if (S.card_title_font || S.card_title_size || S.card_title_color) {
     const s = getStyleStr(S.card_title_size, S.card_title_color, S.card_title_font).replace('style="', '').replace('"', '');
     if (s) customCardCss += `.site-title { ${s} }`;
@@ -445,21 +448,31 @@ export async function onRequest(context) {
     const s = getStyleStr(S.card_desc_size, S.card_desc_color, S.card_desc_font).replace('style="', '').replace('"', '');
     if (s) customCardCss += `.site-card p { ${s} }`;
   }
-  customCardCss += '</style>';
-  if (customCardCss !== '<style></style>') html = html.replace('</head>', `${customCardCss}</head>`);
+  if (customCardCss) headInjections += `<style>${customCardCss}</style>`;
 
-  // 注入全局数据
-  const safeJson = JSON.stringify(allSites).replace(/</g, '\\u003c');
-  html = html.replace('</head>', `<script>window.IORI_SITES = ${safeJson};</script></head>`);
+  // 全局站点数据（精简字段，减小 HTML 体积）
+  const searchData = allSites.map(s => ({ id: s.id, name: s.name, url: s.url, logo: s.logo, desc: s.desc, catelog_id: s.catelog_id, catelog_name: s.catelog_name }));
+  const safeJson = JSON.stringify(searchData).replace(/</g, '\\u003c');
+  headInjections += `<script>window.IORI_SITES = ${safeJson};</script>`;
 
-  // 注入布局配置
-  html = html.replace('</head>', `<script>
+  // 布局配置
+  headInjections += `<script>
     window.IORI_LAYOUT_CONFIG = {
       hideDesc: ${S.layout_hide_desc}, hideLinks: ${S.layout_hide_links}, hideCategory: ${S.layout_hide_category},
       gridCols: "${S.layout_grid_cols}", cardStyle: "${S.layout_card_style}",
       enableFrostedGlass: ${S.layout_enable_frosted_glass}, rememberLastCategory: ${S.home_remember_last_category}
     };
-  </script></head>`);
+  </script>`;
+
+  // --- 一次性替换 </head> ---
+  html = html.replace('</head>', headInjections + '</head>');
+
+  // 替换 body 标签 + 滚动容器
+  html = html.replace(
+    '<body class="bg-secondary-50 font-sans text-gray-800">',
+    `<body class="bg-secondary-50 dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-100 relative ${isCustomWallpaper ? 'custom-wallpaper' : ''}">${bgLayerHtml}<div id="app-scroll">`
+  );
+  html = html.replace('</body>', '</div></body>');
 
   // 替换所有模板占位符
   html = html

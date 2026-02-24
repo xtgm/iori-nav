@@ -21,12 +21,13 @@ document.addEventListener('DOMContentLoaded', function () {
   closeSidebar?.addEventListener('click', closeSidebarMenu);
   mobileOverlay?.addEventListener('click', closeSidebarMenu);
 
-  // Clean up initial server-side rendered cards animation
+  // 为初始 SSR 渲染的卡片设置动画延迟（已从服务端移至前端）
   const initialCards = document.querySelectorAll('.site-card.card-anim-enter');
-  initialCards.forEach(card => {
+  initialCards.forEach((card, index) => {
+    const delay = Math.min(index, 20) * 30;
+    if (delay > 0) card.style.animationDelay = `${delay}ms`;
     card.addEventListener('animationend', () => {
       card.classList.remove('card-anim-enter');
-      // Clean up inline animation-delay style if present
       if (card.style.animationDelay) {
         card.style.removeProperty('animation-delay');
       }
@@ -793,9 +794,10 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // 辅助函数
+  const _ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function escapeHTML(str) {
     if (!str) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return String(str).replace(/[&<>"']/g, c => _ESC[c]);
   }
 
   function normalizeUrl(url) {
